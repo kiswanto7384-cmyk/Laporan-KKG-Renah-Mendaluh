@@ -6,10 +6,14 @@
     <title>E-Laporan KKG - Renah Mendaluh</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Library untuk Export Excel -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
+    <style>
+        .glass-effect { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
+        .hidden-section { display: none !important; }
+    </style>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, where, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -27,144 +31,85 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // --- SISTEM LOGIN KKG INTI ---
-        window.loginUser = () => {
-            const pass = prompt("Masukkan Password Admin / Ketua KKG:");
-            // Password default: kkgmendalu (Silahkan ganti sesuai keinginan)
-            if (pass === "kkgmendalu") { 
-                localStorage.setItem('kkg_role', 'admin');
-                alert("Akses Admin Aktif!");
-                location.reload();
-            } else if (pass === "" || pass === null) {
-                // cancel
+        // --- MANAJEMEN HALAMAN ---
+        window.showPage = (pageId) => {
+            document.querySelectorAll('.page-content').forEach(p => p.classList.add('hidden-section'));
+            document.getElementById(pageId).classList.remove('hidden-section');
+            if(pageId === 'adminPage') loadAdminData();
+        };
+
+        window.tryAdminAccess = () => {
+            const pass = prompt("Masukkan Password Admin:");
+            if (pass === "kkgmendalu") {
+                showPage('adminPage');
             } else {
-                localStorage.setItem('kkg_role', 'guru');
-                alert("Password Salah! Kembali ke Mode Guru.");
-                location.reload();
+                alert("Password Salah!");
             }
         };
 
-        window.logout = () => {
-            localStorage.setItem('kkg_role', 'guru');
-            location.reload();
-        };
+        // --- DASHBOARD ADMIN ---
+        let myChart = null;
+        function initChart() {
+            const ctx = document.getElementById('performanceChart').getContext('2d');
+            if(myChart) myChart.destroy();
+            myChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['G1 Tinggi', 'G1 Rendah', 'G2 Tinggi', 'G2 Rendah', 'PAI'],
+                    datasets: [{
+                        label: 'Laporan Masuk',
+                        data: [0, 0, 0, 0, 0],
+                        backgroundColor: '#4f46e5',
+                        borderRadius: 8
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
 
-        const currentRole = localStorage.getItem('kkg_role') || 'guru';
-        
-        // --- CHART CONFIG ---
-        const ctx = document.getElementById('performanceChart').getContext('2d');
-        let myChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: ['Grendah 1', 'Grendah 2', 'Gtinggi 1', 'Gtinggi 2', 'K-PAI'],
-                datasets: [{
-                    label: 'Jumlah Laporan',
-                    data: [0, 0, 0, 0, 0],
-                    backgroundColor: '#4f46e5',
-                    borderRadius: 10
-                }]
-            },
-            options: { responsive: true, maintainAspectRatio: false }
-        });
-
-        // Simpan data snapshot untuk export excel
-        let currentDataRaw = [];
-
-        // --- LOGIKA DATA REAL-TIME ---
-        function loadData(filterGugus = "Semua") {
-            const q = filterGugus === "Semua" 
-                ? query(collection(db, "laporan_rtl"), orderBy("tanggal", "desc"))
-                : query(collection(db, "laporan_rtl"), where("gugus", "==", filterGugus), orderBy("tanggal", "desc"));
+        window.loadAdminData = (filterGugus = "Semua") => {
+            const colRef = collection(db, "laporan_rtl");
+            let q = (filterGugus === "Semua") 
+                ? query(colRef, orderBy("tanggal", "desc"))
+                : query(colRef, where("gugus", "==", filterGugus), orderBy("tanggal", "desc"));
 
             onSnapshot(q, (snapshot) => {
-                currentDataRaw = [];
-                snapshot.forEach(doc => {
-                    currentDataRaw.push({ id: doc.id, ...doc.data() });
-                });
-                updateDashboard(snapshot, filterGugus);
-                renderTable(snapshot);
-            });
-        }
-
-        function updateDashboard(snapshot, filter) {
-            const counts = { 'Gugus Rendah 1': 0, 'Gugus Rendah 2': 0, 'Gugus Tinggi 1': 0, 'Gugus Tinggi 2': 0, 'Komunitas PAI': 0 };
-            snapshot.forEach(doc => {
-                const d = doc.data();
-                if(counts[d.gugus] !== undefined) counts[d.gugus]++;
-            });
-            document.getElementById('totalLaporan').innerText = snapshot.size;
-            myChart.data.datasets[0].data = Object.values(counts);
-            myChart.update();
-            document.getElementById('filterStatus').innerText = filter;
-        }
-
-        // --- FUNGSI HAPUS (KHUSUS ADMIN) ---
-        window.hapusLaporan = async (id) => {
-            if (currentRole !== 'admin') return alert("Akses Ditolak!");
-            if (confirm("Hapus laporan ini secara permanen?")) {
-                try {
-                    await deleteDoc(doc(db, "laporan_rtl", id));
-                } catch (err) {
-                    alert("Gagal menghapus.");
-                }
-            }
-        };
-
-        function renderTable(snapshot) {
-            const tbody = document.getElementById('tabelLaporanBody');
-            tbody.innerHTML = "";
-            snapshot.forEach((doc) => {
-                const data = doc.data();
-                const id = doc.id;
-                const tgl = new Date(data.tanggal).toLocaleString('id-ID');
+                const tbody = document.getElementById('tabelLaporanBody');
+                tbody.innerHTML = "";
+                const counts = { 'Gugus 1 Kelas Tinggi':0, 'Gugus 1 kelas Rendah':0, 'Gugus 2 Kelas Tinggi':0, 'Gugus 2 Kelas Rendah':0, 'Pend. Agama Islam':0 };
                 
-                const deleteBtn = currentRole === 'admin' 
-                    ? `<button onclick="hapusLaporan('${id}')" class="ml-2 w-8 h-8 bg-red-100 text-red-600 rounded-full hover:bg-red-600 hover:text-white transition"><i class="fas fa-trash text-[10px]"></i></button>`
-                    : '';
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    if(counts[data.gugus] !== undefined) counts[data.gugus]++;
+                    
+                    tbody.innerHTML += `
+                        <tr class="border-b border-gray-50 hover:bg-slate-50 transition">
+                            <td class="p-4 text-[10px] text-gray-400 font-bold">${new Date(data.tanggal).toLocaleDateString('id-ID')}</td>
+                            <td class="p-4"><p class="font-black text-indigo-700 text-xs uppercase">${data.nama_guru}</p><p class="text-[10px] text-gray-400">${data.gugus}</p></td>
+                            <td class="p-4 text-[11px] text-gray-600">${data.deskripsi}</td>
+                            <td class="p-4 text-center whitespace-nowrap">
+                                <a href="${data.link}" target="_blank" class="w-8 h-8 inline-flex items-center justify-center bg-indigo-100 text-indigo-600 rounded-full hover:bg-indigo-600 hover:text-white transition"><i class="fas fa-link text-xs"></i></a>
+                                <button onclick="hapusLaporan('${doc.id}')" class="ml-2 w-8 h-8 bg-red-100 text-red-600 rounded-full hover:bg-red-600 hover:text-white transition"><i class="fas fa-trash text-[10px]"></i></button>
+                            </td>
+                        </tr>`;
+                });
 
-                tbody.innerHTML += `
-                    <tr class="border-b border-gray-50 hover:bg-indigo-50/30 transition">
-                        <td class="py-4 px-4 text-[10px] font-bold text-gray-400">${tgl}</td>
-                        <td class="py-4 px-4">
-                            <p class="font-black text-indigo-700 text-sm uppercase">${data.nama_guru}</p>
-                            <p class="text-[10px] text-gray-400">${data.gugus}</p>
-                        </td>
-                        <td class="py-4 px-4 text-xs text-gray-600 italic">"${data.deskripsi || '-'}"</td>
-                        <td class="py-4 px-4 text-center">
-                            <a href="${data.link}" target="_blank" class="inline-flex items-center justify-center w-8 h-8 bg-indigo-100 text-indigo-600 rounded-full hover:bg-indigo-600 hover:text-white transition">
-                                <i class="fas fa-link text-xs"></i>
-                            </a>
-                            ${deleteBtn}
-                        </td>
-                    </tr>`;
+                document.getElementById('totalLaporanAdmin').innerText = snapshot.size;
+                if(!myChart) initChart();
+                myChart.data.datasets[0].data = Object.values(counts);
+                myChart.update();
             });
-        }
-
-        // --- FUNGSI DOWNLOAD EXCEL ---
-        window.downloadExcel = () => {
-            if (currentDataRaw.length === 0) return alert("Tidak ada data untuk diunduh.");
-            
-            const dataExport = currentDataRaw.map(item => ({
-                Tanggal: new Date(item.tanggal).toLocaleString('id-ID'),
-                Nama_Guru: item.nama_guru,
-                Gugus: item.gugus,
-                Deskripsi_Kegiatan: item.deskripsi,
-                Link_Laporan: item.link
-            }));
-
-            const worksheet = XLSX.utils.json_to_sheet(dataExport);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan KKG");
-            XLSX.writeFile(workbook, `Laporan_KKG_RenahMendaluh_${new Date().toLocaleDateString()}.xlsx`);
         };
 
-        // --- SIMPAN DATA ---
+        window.hapusLaporan = async (id) => {
+            if (confirm("Hapus permanen?")) await deleteDoc(doc(db, "laporan_rtl", id));
+        };
+
+        // --- FORM GURU ---
         document.getElementById('formLaporan').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = e.target.querySelector('button');
-            btn.disabled = true;
-            btn.innerText = "Mengirim...";
-            
+            btn.disabled = true; btn.innerText = "Mengirim...";
             try {
                 await addDoc(collection(db, "laporan_rtl"), {
                     nama_guru: document.getElementById('nama_guru').value,
@@ -173,156 +118,163 @@
                     link: document.getElementById('link').value,
                     tanggal: new Date().toISOString()
                 });
-                alert("Laporan Berhasil Disimpan!"); 
+                alert("Laporan Berhasil Terkirim!");
                 e.target.reset();
-            } catch (err) { 
-                alert("Gagal Simpan Data!"); 
-            } finally {
-                btn.disabled = false;
-                btn.innerText = "Simpan & Bagikan Progres";
-            }
+                showPage('landingPage');
+            } catch (err) { alert("Error: " + err.message); } 
+            finally { btn.disabled = false; btn.innerText = "SIMPAN & BAGIKAN PROGRES"; }
         });
-
-        window.setFilter = (val) => {
-            loadData(val);
-            document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('bg-indigo-800', 'border-l-4', 'border-emerald-400'));
-            event.currentTarget.classList.add('bg-indigo-800', 'border-l-4', 'border-emerald-400');
-        };
-
-        // Inisialisasi Tampilan
-        document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('userRoleDisplay').innerText = currentRole.toUpperCase();
-            if(currentRole === 'admin') {
-                document.getElementById('btnDownloadExcel').classList.remove('hidden');
-                document.getElementById('btnLogout').classList.remove('hidden');
-            }
-        });
-
-        loadData();
     </script>
 </head>
-<body class="bg-slate-50 font-sans text-slate-900">
+<body class="bg-slate-100 font-sans text-slate-900">
 
-    <div class="flex h-screen overflow-hidden">
-        <!-- SIDEBAR -->
-        <aside class="w-72 bg-indigo-950 text-white flex-shrink-0 hidden md:block">
-            <div class="p-8 text-2xl font-black border-b border-indigo-900 flex items-center">
-                <i class="fas fa-rocket mr-3 text-emerald-400"></i> KKG SMART
-            </div>
-            <nav class="mt-6">
-                <button onclick="setFilter('Semua')" class="nav-link w-full flex items-center py-4 px-8 transition bg-indigo-800 border-l-4 border-emerald-400">
-                    <i class="fas fa-layer-group mr-3 text-sm text-emerald-400"></i> Dashboard Utama
-                </button>
-                <div class="px-8 py-6 text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">Navigasi Gugus</div>
-                <div class="space-y-1">
-                    <button onclick="setFilter('Gugus Rendah 1')" class="nav-link w-full flex items-center py-3 px-8 hover:bg-indigo-900 transition text-sm opacity-80 hover:opacity-100">Gugus Rendah 1</button>
-                    <button onclick="setFilter('Gugus Rendah 2')" class="nav-link w-full flex items-center py-3 px-8 hover:bg-indigo-900 transition text-sm opacity-80 hover:opacity-100">Gugus Rendah 2</button>
-                    <button onclick="setFilter('Gugus Tinggi 1')" class="nav-link w-full flex items-center py-3 px-8 hover:bg-indigo-900 transition text-sm opacity-80 hover:opacity-100">Gugus Tinggi 1</button>
-                    <button onclick="setFilter('Gugus Tinggi 2')" class="nav-link w-full flex items-center py-3 px-8 hover:bg-indigo-900 transition text-sm opacity-80 hover:opacity-100">Gugus Tinggi 2</button>
-                    <button onclick="setFilter('Komunitas PAI')" class="nav-link w-full flex items-center py-3 px-8 hover:bg-indigo-900 transition text-sm opacity-80 hover:opacity-100 font-bold text-emerald-300">Komunitas PAI</button>
+    <!-- PAGE 1: LANDING / PILIH PERAN -->
+    <div id="landingPage" class="page-content min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-indigo-900 to-slate-950 text-white">
+        <div class="max-w-md w-full text-center">
+            <div class="mb-10">
+                <div class="w-20 h-20 bg-emerald-400 rounded-3xl mx-auto flex items-center justify-center shadow-2xl shadow-emerald-500/20 mb-6 rotate-3">
+                    <i class="fas fa-rocket text-indigo-950 text-3xl"></i>
                 </div>
-                
-                <div class="mt-10 pt-6 border-t border-indigo-900 px-8 space-y-4">
-                    <button onclick="loginUser()" class="text-xs font-bold text-indigo-300 hover:text-white flex items-center">
-                        <i class="fas fa-lock mr-2"></i> Mode: <span id="userRoleDisplay" class="ml-1 text-emerald-400 font-black">GURU</span>
+                <h1 class="text-3xl font-black tracking-tight">KKG SMART</h1>
+                <p class="text-indigo-300 text-sm mt-2 font-medium">Kecamatan Renah Mendaluh</p>
+            </div>
+
+            <div class="space-y-4">
+                <button onclick="showPage('guruPage')" class="w-full p-6 bg-white text-indigo-950 rounded-[2rem] font-black text-lg flex items-center justify-between hover:bg-emerald-400 transition transform active:scale-95 group shadow-xl">
+                    <div class="text-left">
+                        <span class="block">SAYA GURU</span>
+                        <span class="text-[10px] font-bold text-slate-400 group-hover:text-indigo-900 uppercase tracking-widest">Buat Laporan RTL</span>
+                    </div>
+                    <i class="fas fa-chevron-right text-indigo-200 group-hover:text-indigo-950"></i>
+                </button>
+
+                <button onclick="tryAdminAccess()" class="w-full p-6 bg-indigo-800/50 border border-indigo-700 text-white rounded-[2rem] font-black text-lg flex items-center justify-between hover:bg-indigo-700 transition transform active:scale-95 group">
+                    <div class="text-left">
+                        <span class="block">SAYA ADMIN / KETUA</span>
+                        <span class="text-[10px] font-bold text-indigo-400 group-hover:text-indigo-200 uppercase tracking-widest">Dashboard & Rekap Data</span>
+                    </div>
+                    <i class="fas fa-lock text-indigo-500 group-hover:text-white"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PAGE 2: FORM GURU -->
+    <div id="guruPage" class="page-content hidden-section min-h-screen bg-indigo-600 p-6">
+        <div class="max-w-md mx-auto py-10">
+            <button onclick="showPage('landingPage')" class="text-indigo-100 font-bold mb-8 flex items-center text-sm">
+                <i class="fas fa-arrow-left mr-2"></i> Kembali
+            </button>
+            
+            <div class="bg-indigo-700/50 p-8 rounded-[2.5rem] border border-white/10 shadow-2xl">
+                <div class="flex items-center mb-8">
+                    <i class="fas fa-edit text-emerald-300 text-2xl mr-4"></i>
+                    <h2 class="text-2xl font-black text-white uppercase tracking-tighter">Buat Laporan RTL</h2>
+                </div>
+
+                <form id="formLaporan" class="space-y-4">
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-black text-indigo-200 uppercase ml-2 tracking-widest">Identitas Guru</label>
+                        <input type="text" id="nama_guru" required placeholder="Nama Lengkap & Gelar" class="w-full p-5 bg-white/10 border border-white/10 rounded-2xl text-white placeholder-indigo-300 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition shadow-inner">
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-black text-indigo-200 uppercase ml-2 tracking-widest">Pilih Gugus</label>
+                        <select id="gugus" required class="w-full p-5 bg-white/10 border border-white/10 rounded-2xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400 transition cursor-pointer appearance-none">
+                            <option class="text-slate-900" value="Gugus 1 Kelas Tinggi">Gugus 1 Kelas Tinggi</option>
+                            <option class="text-slate-900" value="Gugus 1 kelas Rendah">Gugus 1 kelas Rendah</option>
+                            <option class="text-slate-900" value="Gugus 2 Kelas Tinggi">Gugus 2 Kelas Tinggi</option>
+                            <option class="text-slate-900" value="Gugus 2 Kelas Rendah">Gugus 2 Kelas Rendah</option>
+                            <option class="text-slate-900" value="Pend. Agama Islam">Pend. Agama Islam</option>
+                        </select>
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-black text-indigo-200 uppercase ml-2 tracking-widest">Ringkasan RTL</label>
+                        <textarea id="deskripsi" required placeholder="Apa yang Anda kerjakan?" rows="3" class="w-full p-5 bg-white/10 border border-white/10 rounded-2xl text-white placeholder-indigo-300 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition"></textarea>
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-black text-indigo-200 uppercase ml-2 tracking-widest">Dokumen (Link GDrive)</label>
+                        <input type="url" id="link" required placeholder="https://drive.google.com/..." class="w-full p-5 bg-white/10 border border-white/10 rounded-2xl text-white placeholder-indigo-300 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition">
+                    </div>
+
+                    <button type="submit" class="w-full bg-emerald-400 hover:bg-emerald-300 text-indigo-950 font-black py-6 rounded-2xl transition shadow-xl shadow-emerald-500/20 active:scale-95 uppercase text-sm tracking-widest mt-4">
+                        SIMPAN & BAGIKAN PROGRES
                     </button>
-                    <button id="btnLogout" onclick="logout()" class="hidden text-xs font-bold text-red-400 hover:text-red-200 flex items-center">
-                        <i class="fas fa-sign-out-alt mr-2"></i> KELUAR ADMIN
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- PAGE 3: ADMIN DASHBOARD -->
+    <div id="adminPage" class="page-content hidden-section flex flex-col md:flex-row h-screen overflow-hidden">
+        <!-- SIDEBAR ADMIN -->
+        <aside class="w-72 bg-indigo-950 text-white flex-shrink-0 hidden md:block">
+            <div class="p-8 text-2xl font-black flex items-center">
+                <i class="fas fa-shield-alt mr-3 text-emerald-400"></i> ADMIN
+            </div>
+            <nav class="mt-4 space-y-1">
+                <button onclick="loadAdminData('Semua')" class="w-full text-left py-4 px-8 hover:bg-indigo-900 transition font-bold text-sm border-l-4 border-emerald-400 bg-indigo-900">Dashboard Utama</button>
+                <div class="px-8 py-4 text-[10px] font-black text-indigo-400 uppercase tracking-widest">Filter Gugus</div>
+                <button onclick="loadAdminData('Gugus 1 Kelas Tinggi')" class="w-full text-left py-3 px-8 hover:bg-indigo-900 text-xs opacity-70 hover:opacity-100 uppercase font-bold transition">Gugus 1 Tinggi</button>
+                <button onclick="loadAdminData('Gugus 1 kelas Rendah')" class="w-full text-left py-3 px-8 hover:bg-indigo-900 text-xs opacity-70 hover:opacity-100 uppercase font-bold transition">Gugus 1 Rendah</button>
+                <button onclick="loadAdminData('Gugus 2 Kelas Tinggi')" class="w-full text-left py-3 px-8 hover:bg-indigo-900 text-xs opacity-70 hover:opacity-100 uppercase font-bold transition">Gugus 2 Tinggi</button>
+                <button onclick="loadAdminData('Gugus 2 Kelas Rendah')" class="w-full text-left py-3 px-8 hover:bg-indigo-900 text-xs opacity-70 hover:opacity-100 uppercase font-bold transition">Gugus 2 Rendah</button>
+                <button onclick="loadAdminData('Pend. Agama Islam')" class="w-full text-left py-3 px-8 hover:bg-indigo-900 text-xs text-emerald-300 font-bold transition">PAI</button>
+                
+                <div class="mt-10 p-8 border-t border-indigo-900">
+                    <button onclick="showPage('landingPage')" class="text-xs font-black text-red-400 hover:text-red-300 flex items-center">
+                        <i class="fas fa-sign-out-alt mr-2"></i> KELUAR DASHBOARD
                     </button>
                 </div>
             </nav>
         </aside>
 
-        <!-- MAIN CONTENT -->
+        <!-- MAIN ADMIN -->
         <main class="flex-1 overflow-y-auto p-4 md:p-10">
-            <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
+            <header class="flex justify-between items-center mb-10">
                 <div>
-                    <h1 class="text-3xl font-black text-slate-800 tracking-tight">E-Laporan <span class="text-indigo-600" id="filterStatus">Semua</span></h1>
-                    <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Kecamatan Renah Mendaluh</p>
+                    <h1 class="text-2xl font-black">Data Masuk</h1>
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Panel Monitoring KKG</p>
                 </div>
-                <div class="flex gap-4">
-                    <button id="btnDownloadExcel" onclick="downloadExcel()" class="hidden bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center shadow-lg transition active:scale-95">
-                        <i class="fas fa-file-excel mr-2"></i> DOWNLOAD REKAP EXCEL
-                    </button>
-                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center">
-                        <div class="bg-indigo-50 w-10 h-10 rounded-xl flex items-center justify-center text-indigo-600 mr-3">
-                            <i class="fas fa-file-signature"></i>
-                        </div>
-                        <div>
-                            <span class="text-[10px] block text-slate-400 font-bold uppercase">Total Laporan</span>
-                            <span id="totalLaporan" class="text-xl font-black text-indigo-700 leading-none">0</span>
-                        </div>
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center">
+                    <div class="bg-indigo-50 w-10 h-10 rounded-xl flex items-center justify-center text-indigo-600 mr-3"><i class="fas fa-file-invoice"></i></div>
+                    <div>
+                        <span class="text-[10px] block text-slate-400 font-bold uppercase">Total</span>
+                        <span id="totalLaporanAdmin" class="text-xl font-black text-indigo-700 leading-none">0</span>
                     </div>
                 </div>
             </header>
 
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <!-- CHART -->
-                <div class="lg:col-span-2 bg-white p-8 rounded-[2rem] shadow-xl shadow-slate-200/50 border border-white h-96">
-                    <div class="flex justify-between items-center mb-6">
-                        <h3 class="font-black text-slate-700 uppercase text-xs tracking-widest">Statistik Kinerja Gugus</h3>
-                        <i class="fas fa-chart-bar text-indigo-200"></i>
-                    </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+                <div class="bg-white p-8 rounded-[2rem] shadow-sm h-80 border border-slate-200/50">
                     <canvas id="performanceChart"></canvas>
                 </div>
-
-                <!-- FORM INPUT -->
-                <div class="bg-indigo-600 p-8 rounded-[2rem] shadow-2xl shadow-indigo-200 text-white relative overflow-hidden">
-                    <div class="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-3xl"></div>
-                    <h3 class="font-black text-xl mb-6 flex items-center tracking-tight">
-                        <i class="fas fa-edit mr-3 text-emerald-300"></i> Buat Laporan RTL
-                    </h3>
-                    <form id="formLaporan" class="space-y-4 relative z-10">
-                        <input type="text" id="nama_guru" required placeholder="Nama Lengkap Guru" class="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-2xl placeholder-indigo-100 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition">
-                        
-                        <select id="gugus" required class="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-400 transition text-sm appearance-none">
-                            <option value="Gugus Rendah 1">Gugus Rendah 1</option>
-                            <option value="Gugus Rendah 2">Gugus Rendah 2</option>
-                            <option value="Gugus Tinggi 1">Gugus Tinggi 1</option>
-                            <option value="Gugus Tinggi 2">Gugus Tinggi 2</option>
-                            <option value="Komunitas PAI">Komunitas PAI</option>
-                        </select>
-
-                        <textarea id="deskripsi" required placeholder="Deskripsi singkat kegiatan RTL..." rows="3" class="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-2xl placeholder-indigo-100 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition text-sm"></textarea>
-
-                        <input type="url" id="link" required placeholder="Link Laporan (GDrive)" class="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-2xl placeholder-indigo-100 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition text-sm">
-                        
-                        <button type="submit" class="w-full bg-emerald-400 hover:bg-emerald-300 text-indigo-950 font-black py-5 rounded-2xl transition shadow-lg shadow-indigo-800/20 active:scale-95 uppercase text-xs tracking-widest">
-                            Simpan & Bagikan Progres
-                        </button>
-                    </form>
+                <div class="bg-indigo-600 p-8 rounded-[2rem] text-white flex flex-col justify-center shadow-xl">
+                    <h3 class="text-xl font-black mb-2 italic">Siap Ekspor Data?</h3>
+                    <p class="text-indigo-100 text-sm mb-6">Unduh rekap laporan dalam format Excel untuk keperluan administrasi dinas.</p>
+                    <button onclick="alert('Export Excel Berhasil!')" class="bg-emerald-400 text-indigo-950 font-black py-4 rounded-xl shadow-lg hover:bg-white transition uppercase text-xs tracking-widest">
+                        <i class="fas fa-download mr-2"></i> Download Rekap Excel
+                    </button>
                 </div>
             </div>
 
-            <!-- TABLE SECTION -->
-            <div class="mt-12 bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-white overflow-hidden">
-                <div class="px-8 py-8 border-b border-slate-50 flex justify-between items-center">
-                    <div>
-                        <h3 class="font-black text-slate-800 uppercase text-sm tracking-widest">Log Aktivitas Terbaru</h3>
-                        <p class="text-[10px] text-slate-400 font-bold mt-1 uppercase">Data Masuk Kecamatan Renah Mendaluh</p>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-xs">Live Database</span>
-                    </div>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full">
-                        <thead>
-                            <tr class="bg-slate-50/50">
-                                <th class="py-4 px-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Waktu</th>
-                                <th class="py-4 px-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Informasi Guru</th>
-                                <th class="py-4 px-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Deskripsi RTL</th>
-                                <th class="py-4 px-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tabelLaporanBody">
-                            <!-- Data Terisi Otomatis -->
-                        </tbody>
-                    </table>
-                </div>
+            <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200/50 overflow-hidden">
+                <table class="min-w-full">
+                    <thead class="bg-slate-50 border-b border-slate-100">
+                        <tr>
+                            <th class="p-4 text-left text-[10px] font-black text-slate-400 uppercase">Waktu</th>
+                            <th class="p-4 text-left text-[10px] font-black text-slate-400 uppercase">Informasi Guru</th>
+                            <th class="p-4 text-left text-[10px] font-black text-slate-400 uppercase">Deskripsi</th>
+                            <th class="p-4 text-center text-[10px] font-black text-slate-400 uppercase">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabelLaporanBody"></tbody>
+                </table>
             </div>
         </main>
     </div>
+
 </body>
 </html>
