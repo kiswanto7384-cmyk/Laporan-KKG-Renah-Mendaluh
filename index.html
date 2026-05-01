@@ -12,22 +12,21 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // GANTI DENGAN CONFIG FIREBASE ANDA
-const firebaseConfig = {
-  apiKey: "AIzaSyBH2_m3mKkp1YoXWrdzMyZXDs_SZ8q_bGE",
-  authDomain: "aplikasi-program-kkg.firebaseapp.com",
-  databaseURL: "https://aplikasi-program-kkg-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "aplikasi-program-kkg",
-  storageBucket: "aplikasi-program-kkg.firebasestorage.app",
-  messagingSenderId: "525865837596",
-  appId: "1:525865837596:web:97fb6bba3d8d81a0c2abd9",
-  measurementId: "G-8DSYJS9H6F"
-};
+        // CONFIG FIREBASE BERSIH (Tanpa databaseURL untuk menghindari konflik Firestore)
+        const firebaseConfig = {
+            apiKey: "AIzaSyBH2_m3mKkp1YoXWrdzMyZXDs_SZ8q_bGE",
+            authDomain: "aplikasi-program-kkg.firebaseapp.com",
+            projectId: "aplikasi-program-kkg",
+            storageBucket: "aplikasi-program-kkg.firebasestorage.app",
+            messagingSenderId: "525865837596",
+            appId: "1:525865837596:web:97fb6bba3d8d81a0c2abd9",
+            measurementId: "G-8DSYJS9H6F"
+        };
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // --- SISTEM LOGIN SEDERHANA (SIMULASI) ---
+        // --- SISTEM LOGIN SEDERHANA ---
         window.loginUser = () => {
             const userRole = prompt("Masukkan Role (admin / ketua / guru):");
             if(userRole) {
@@ -36,29 +35,13 @@ const firebaseConfig = {
             }
         };
 
-        window.logout = () => {
-            localStorage.removeItem('kkg_role');
-            location.reload();
-        };
-
         const currentRole = localStorage.getItem('kkg_role') || 'guru';
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('userRoleDisplay').innerText = currentRole.toUpperCase();
             if(currentRole === 'guru') document.getElementById('adminMenu').classList.add('hidden');
         });
 
-        // --- LOGIKA DATA ---
-        function loadData(filterGugus = "Semua") {
-            const q = filterGugus === "Semua" 
-                ? query(collection(db, "laporan_rtl"), orderBy("tanggal", "desc"))
-                : query(collection(db, "laporan_rtl"), where("gugus", "==", filterGugus), orderBy("tanggal", "desc"));
-
-            onSnapshot(q, (snapshot) => {
-                updateDashboard(snapshot, filterGugus);
-                renderTable(snapshot);
-            });
-        }
-
+        // --- CHART CONFIG ---
         const ctx = document.getElementById('performanceChart').getContext('2d');
         let myChart = new Chart(ctx, {
             type: 'bar',
@@ -73,6 +56,24 @@ const firebaseConfig = {
             },
             options: { responsive: true, maintainAspectRatio: false }
         });
+
+        // --- LOGIKA DATA REAL-TIME ---
+        function loadData(filterGugus = "Semua") {
+            const q = filterGugus === "Semua" 
+                ? query(collection(db, "laporan_rtl"), orderBy("tanggal", "desc"))
+                : query(collection(db, "laporan_rtl"), where("gugus", "==", filterGugus), orderBy("tanggal", "desc"));
+
+            // onSnapshot menjamin data terupdate otomatis tanpa refresh
+            onSnapshot(q, (snapshot) => {
+                updateDashboard(snapshot, filterGugus);
+                renderTable(snapshot);
+            }, (error) => {
+                console.error("Koneksi gagal:", error);
+                if (error.code === 'permission-denied') {
+                    alert("Akses ditolak. Pastikan Rules di Firebase Console sudah di-publish.");
+                }
+            });
+        }
 
         function updateDashboard(snapshot, filter) {
             const counts = { 'Gugus Rendah 1': 0, 'Gugus Rendah 2': 0, 'Gugus Tinggi 1': 0, 'Gugus Tinggi 2': 0, 'Komunitas PAI': 0 };
@@ -109,10 +110,13 @@ const firebaseConfig = {
             });
         }
 
+        // --- SIMPAN DATA ---
         document.getElementById('formLaporan').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = e.target.querySelector('button');
+            btn.disabled = true;
             btn.innerText = "Mengirim...";
+            
             try {
                 await addDoc(collection(db, "laporan_rtl"), {
                     nama_guru: document.getElementById('nama_guru').value,
@@ -121,9 +125,15 @@ const firebaseConfig = {
                     link: document.getElementById('link').value,
                     tanggal: new Date().toISOString()
                 });
-                alert("Laporan Berhasil Disimpan!"); e.target.reset();
-            } catch (err) { alert("Gagal Simpan Data!"); }
-            btn.innerText = "Simpan & Bagikan Progres";
+                alert("Laporan Berhasil Disimpan!"); 
+                e.target.reset();
+            } catch (err) { 
+                alert("Gagal Simpan Data! Cek koneksi atau Firebase Rules."); 
+                console.error(err);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Simpan & Bagikan Progres";
+            }
         });
 
         window.setFilter = (val) => {
@@ -132,6 +142,7 @@ const firebaseConfig = {
             event.currentTarget.classList.add('bg-indigo-800', 'border-l-4', 'border-emerald-400');
         };
 
+        // Jalankan load data pertama kali
         loadData();
     </script>
 </head>
@@ -204,11 +215,11 @@ const firebaseConfig = {
                         <input type="text" id="nama_guru" required placeholder="Nama Lengkap Guru" class="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-2xl placeholder-indigo-100 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition">
                         
                         <select id="gugus" required class="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-400 transition text-sm appearance-none">
-                            <option class="text-slate-800">Gugus Rendah 1</option>
-                            <option class="text-slate-800">Gugus Rendah 2</option>
-                            <option class="text-slate-800">Gugus Tinggi 1</option>
-                            <option class="text-slate-800">Gugus Tinggi 2</option>
-                            <option class="text-slate-800">Komunitas PAI</option>
+                            <option value="Gugus Rendah 1">Gugus Rendah 1</option>
+                            <option value="Gugus Rendah 2">Gugus Rendah 2</option>
+                            <option value="Gugus Tinggi 1">Gugus Tinggi 1</option>
+                            <option value="Gugus Tinggi 2">Gugus Tinggi 2</option>
+                            <option value="Komunitas PAI">Komunitas PAI</option>
                         </select>
 
                         <textarea id="deskripsi" required placeholder="Deskripsi singkat kegiatan RTL..." rows="3" class="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-2xl placeholder-indigo-100 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition text-sm"></textarea>
