@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>E-Laporan KKG Modern</title>
+    <title>E-Laporan KKG Modern - Renah Mendaluh</title>
+    <!-- Library CSS & JS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -11,82 +12,218 @@
 <body class="bg-gray-100 font-sans">
 
     <div class="flex h-screen overflow-hidden">
-        <!-- Sidebar -->
+        <!-- SIDEBAR -->
         <aside class="w-64 bg-indigo-900 text-white flex-shrink-0 hidden md:block">
-            <div class="p-6 text-2xl font-bold border-b border-indigo-800">KKG SMART</div>
+            <div class="p-6 text-2xl font-bold border-b border-indigo-800 flex items-center">
+                <i class="fas fa-graduation-cap mr-2 text-emerald-400"></i> KKG SMART
+            </div>
             <nav class="mt-6">
                 <a href="#" class="flex items-center py-3 px-6 bg-indigo-800 border-l-4 border-emerald-400">
                     <i class="fas fa-home mr-3"></i> Dashboard Utama
                 </a>
-                <div class="px-6 py-4 text-xs font-semibold text-indigo-300 uppercase">Gugus & Komunitas</div>
+                <div class="px-6 py-4 text-xs font-semibold text-indigo-300 uppercase tracking-widest">Gugus & Komunitas</div>
                 <a href="#" class="flex items-center py-3 px-6 hover:bg-indigo-800 transition">
-                    <i class="fas fa-users mr-3"></i> Kelas Rendah (1 & 2)
+                    <i class="fas fa-child mr-3"></i> Kelas Rendah
                 </a>
                 <a href="#" class="flex items-center py-3 px-6 hover:bg-indigo-800 transition">
-                    <i class="fas fa-users mr-3"></i> Kelas Tinggi (1 & 2)
+                    <i class="fas fa-user-graduate mr-3"></i> Kelas Tinggi
                 </a>
                 <a href="#" class="flex items-center py-3 px-6 hover:bg-indigo-800 transition">
                     <i class="fas fa-mosque mr-3"></i> Komunitas PAI
                 </a>
-                <div class="px-6 py-4 text-xs font-semibold text-indigo-300 uppercase">Admin</div>
+                <div class="px-6 py-4 text-xs font-semibold text-indigo-300 uppercase tracking-widest">Admin Control</div>
                 <a href="#" class="flex items-center py-3 px-6 hover:bg-indigo-800 transition">
-                    <i class="fas fa-user-cog mr-3"></i> Daftar User
+                    <i class="fas fa-users-cog mr-3"></i> Manajemen User
                 </a>
             </nav>
         </aside>
 
-        <!-- Main Content -->
+        <!-- MAIN CONTENT -->
         <main class="flex-1 overflow-y-auto p-8">
             <!-- Header -->
             <header class="flex justify-between items-center mb-8">
-                <h1 class="text-2xl font-bold text-gray-800">Progres Kinerja KKG</h1>
-                <div class="flex items-center bg-white p-2 rounded-lg shadow-sm">
-                    <span class="text-gray-600 mr-4">Admin SDN 165</span>
-                    <div class="w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center text-white font-bold">A</div>
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-800">E-Laporan KKG Renah Mendaluh</h1>
+                    <p class="text-gray-500 text-sm">Pantau progres dan kreativitas guru setiap saat.</p>
+                </div>
+                <div class="flex items-center bg-white py-2 px-4 rounded-xl shadow-sm border border-gray-200">
+                    <div class="text-right mr-3">
+                        <p class="text-xs font-bold text-gray-800 leading-none">Admin SDN 165</p>
+                        <p class="text-[10px] text-gray-500">Tanjung Jabung Barat</p>
+                    </div>
+                    <div class="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-md">
+                        <i class="fas fa-user"></i>
+                    </div>
                 </div>
             </header>
 
-            <!-- Stats Cards -->
+            <!-- STATS CARDS -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div class="bg-white p-6 rounded-xl shadow-sm border-b-4 border-blue-500">
-                    <div class="text-gray-500 text-sm">Total Laporan RTL</div>
-                    <div class="text-3xl font-bold">128</div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border-b-4 border-blue-500 hover:shadow-md transition">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-500 text-sm font-medium">Total Laporan RTL</p>
+                            <h2 class="text-3xl font-bold text-gray-800">128</h2>
+                        </div>
+                        <div class="bg-blue-50 p-3 rounded-lg text-blue-500 text-xl"><i class="fas fa-file-alt"></i></div>
+                    </div>
                 </div>
-                <div class="bg-white p-6 rounded-xl shadow-sm border-b-4 border-yellow-500">
-                    <div class="text-gray-500 text-sm">Sedang Review</div>
-                    <div class="text-3xl font-bold">14</div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border-b-4 border-yellow-500 hover:shadow-md transition">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-500 text-sm font-medium">Sedang Review</p>
+                            <h2 class="text-3xl font-bold text-gray-800">14</h2>
+                        </div>
+                        <div class="bg-yellow-50 p-3 rounded-lg text-yellow-600 text-xl"><i class="fas fa-hourglass-half"></i></div>
+                    </div>
                 </div>
-                <div class="bg-white p-6 rounded-xl shadow-sm border-b-4 border-emerald-500">
-                    <div class="text-gray-500 text-sm">Selesai Diverifikasi</div>
-                    <div class="text-3xl font-bold">114</div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border-b-4 border-emerald-500 hover:shadow-md transition">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-500 text-sm font-medium">Terverifikasi</p>
+                            <h2 class="text-3xl font-bold text-gray-800">114</h2>
+                        </div>
+                        <div class="bg-emerald-50 p-3 rounded-lg text-emerald-500 text-xl"><i class="fas fa-check-circle"></i></div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Chart Section -->
-            <div class="bg-white p-6 rounded-xl shadow-sm mb-8">
-                <h3 class="text-lg font-semibold mb-4 text-gray-700">Grafik Kinerja 5 Gugus</h3>
-                <canvas id="performanceChart" height="100"></canvas>
+            <!-- CHART SECTION -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm mb-8">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-bold text-gray-700">Grafik Kinerja 5 Gugus (%)</h3>
+                    <span class="text-xs font-semibold text-gray-400 uppercase tracking-tighter italic">*Update otomatis setiap laporan masuk</span>
+                </div>
+                <div class="relative h-64">
+                    <canvas id="performanceChart"></canvas>
+                </div>
+            </div>
+
+            <!-- FORM & TABLE SECTION -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                
+                <!-- Form Input Laporan (Motivasi Guru) -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <div class="flex items-center mb-6">
+                        <div class="bg-indigo-100 text-indigo-600 p-2 rounded-lg mr-3">
+                            <i class="fas fa-paper-plane"></i>
+                        </div>
+                        <h3 class="text-lg font-bold text-gray-800">Kirim Laporan RTL Baru</h3>
+                    </div>
+                    <form id="formLaporan" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1 px-1">Judul Kegiatan Pelatihan</label>
+                            <input type="text" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-400 outline-none transition" placeholder="Contoh: Pelatihan Canva Dasar">
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 uppercase mb-1 px-1">Pilih Gugus</label>
+                                <select required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-400 outline-none">
+                                    <option>Gugus Rendah 1</option>
+                                    <option>Gugus Rendah 2</option>
+                                    <option>Gugus Tinggi 1</option>
+                                    <option>Gugus Tinggi 2</option>
+                                    <option>Komunitas PAI</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 uppercase mb-1 px-1">Link Bukti (Drive)</label>
+                                <input type="url" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-400 outline-none" placeholder="https://drive.google.com/...">
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded-xl hover:bg-indigo-700 transition font-bold shadow-lg shadow-indigo-200">
+                            Simpan & Bagikan Progres <i class="fas fa-rocket ml-2"></i>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Daftar User Ringkas -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center">
+                            <div class="bg-emerald-100 text-emerald-600 p-2 rounded-lg mr-3">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <h3 class="text-lg font-bold text-gray-800">User Aktif</h3>
+                        </div>
+                        <button class="text-indigo-600 text-xs font-bold hover:underline">Lihat Semua</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full">
+                            <thead>
+                                <tr class="text-left text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100">
+                                    <th class="pb-4">Nama Guru</th>
+                                    <th class="pb-4">Gugus</th>
+                                    <th class="pb-4 text-center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-50">
+                                <tr class="text-sm">
+                                    <td class="py-4 font-semibold text-gray-700 uppercase">Budi Setiawan</td>
+                                    <td class="py-4 text-gray-500">Tinggi 1</td>
+                                    <td class="py-4 text-center">
+                                        <span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-bold">KETUA</span>
+                                    </td>
+                                </tr>
+                                <tr class="text-sm">
+                                    <td class="py-4 font-semibold text-gray-700 uppercase">Siti Aminah</td>
+                                    <td class="py-4 text-gray-500">PAI</td>
+                                    <td class="py-4 text-center">
+                                        <span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[10px] font-bold">ANGGOTA</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
             </div>
         </main>
     </div>
 
     <script>
-        // Script untuk Grafik (Placeholder Data)
+        // INISIALISASI GRAFIK
         const ctx = document.getElementById('performanceChart').getContext('2d');
         new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: ['Gugus Rendah 1', 'Gugus Rendah 2', 'Gugus Tinggi 1', 'Gugus Tinggi 2', 'Komunitas PAI'],
+                labels: ['Grendah 1', 'Grendah 2', 'Gtinggi 1', 'Gtinggi 2', 'K-PAI'],
                 datasets: [{
-                    label: '% Progres Kegiatan',
-                    data: [85, 70, 92, 65, 88], // Data ini nantinya dari Firebase
-                    backgroundColor: ['#3b82f6', '#3b82f6', '#10b981', '#3b82f6', '#8b5cf6'],
-                    borderRadius: 8
+                    label: '% Penyelesaian RTL',
+                    data: [85, 70, 92, 65, 88], // Placeholder
+                    backgroundColor: [
+                        'rgba(79, 70, 229, 0.8)',
+                        'rgba(79, 70, 229, 0.8)',
+                        'rgba(16, 185, 129, 0.8)', // Warna Hijau untuk yang paling tinggi
+                        'rgba(79, 70, 229, 0.8)',
+                        'rgba(139, 92, 246, 0.8)'
+                    ],
+                    borderRadius: 10,
+                    barThickness: 40
                 }]
             },
             options: {
-                scales: { y: { beginAtZero: true, max: 100 } }
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { 
+                        beginAtZero: true, 
+                        max: 100,
+                        grid: { borderDash: [5, 5], color: '#e5e7eb' }
+                    },
+                    x: { grid: { display: false } }
+                }
             }
+        });
+
+        // HANDLE FORM SUBMIT (Simulasi)
+        document.getElementById('formLaporan').addEventListener('submit', (e) => {
+            e.preventDefault();
+            alert('Laporan Berhasil Terkirim! Data akan diverifikasi oleh Admin Gugus.');
+            e.target.reset();
         });
     </script>
 </body>
