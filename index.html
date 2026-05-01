@@ -12,21 +12,42 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // MENGGUNAKAN CONFIG FIREBASE ANDA
-        const firebaseConfig = {
-            apiKey: "API_KEY_ANDA",
-            authDomain: "PROYEK-ANDA.firebaseapp.com",
-            projectId: "PROYEK-ANDA",
-            storageBucket: "PROYEK-ANDA.appspot.com",
-            messagingSenderId: "SENDER_ID_ANDA",
-            appId: "APP_ID_ANDA"
-        };
+        // GANTI DENGAN CONFIG FIREBASE ANDA
+const firebaseConfig = {
+  apiKey: "AIzaSyBH2_m3mKkp1YoXWrdzMyZXDs_SZ8q_bGE",
+  authDomain: "aplikasi-program-kkg.firebaseapp.com",
+  databaseURL: "https://aplikasi-program-kkg-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "aplikasi-program-kkg",
+  storageBucket: "aplikasi-program-kkg.firebasestorage.app",
+  messagingSenderId: "525865837596",
+  appId: "1:525865837596:web:97fb6bba3d8d81a0c2abd9",
+  measurementId: "G-8DSYJS9H6F"
+};
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        let currentFilter = "Semua";
 
-        // --- FUNGSI MENGAMBIL DATA (REAL-TIME) ---
+        // --- SISTEM LOGIN SEDERHANA (SIMULASI) ---
+        window.loginUser = () => {
+            const userRole = prompt("Masukkan Role (admin / ketua / guru):");
+            if(userRole) {
+                localStorage.setItem('kkg_role', userRole);
+                location.reload();
+            }
+        };
+
+        window.logout = () => {
+            localStorage.removeItem('kkg_role');
+            location.reload();
+        };
+
+        const currentRole = localStorage.getItem('kkg_role') || 'guru';
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('userRoleDisplay').innerText = currentRole.toUpperCase();
+            if(currentRole === 'guru') document.getElementById('adminMenu').classList.add('hidden');
+        });
+
+        // --- LOGIKA DATA ---
         function loadData(filterGugus = "Semua") {
             const q = filterGugus === "Semua" 
                 ? query(collection(db, "laporan_rtl"), orderBy("tanggal", "desc"))
@@ -38,17 +59,16 @@
             });
         }
 
-        // --- UPDATE GRAFIK & STATS ---
         const ctx = document.getElementById('performanceChart').getContext('2d');
         let myChart = new Chart(ctx, {
             type: 'bar',
             data: {
                 labels: ['Grendah 1', 'Grendah 2', 'Gtinggi 1', 'Gtinggi 2', 'K-PAI'],
                 datasets: [{
-                    label: 'Laporan Masuk',
+                    label: 'Progres RTL',
                     data: [0, 0, 0, 0, 0],
                     backgroundColor: '#4f46e5',
-                    borderRadius: 8
+                    borderRadius: 10
                 }]
             },
             options: { responsive: true, maintainAspectRatio: false }
@@ -60,14 +80,12 @@
                 const d = doc.data();
                 if(counts[d.gugus] !== undefined) counts[d.gugus]++;
             });
-            
             document.getElementById('totalLaporan').innerText = snapshot.size;
             myChart.data.datasets[0].data = Object.values(counts);
             myChart.update();
             document.getElementById('filterStatus').innerText = filter;
         }
 
-        // --- RENDER TABEL ---
         function renderTable(snapshot) {
             const tbody = document.getElementById('tabelLaporanBody');
             tbody.innerHTML = "";
@@ -75,131 +93,159 @@
                 const data = doc.data();
                 const tgl = new Date(data.tanggal).toLocaleDateString('id-ID');
                 tbody.innerHTML += `
-                    <tr class="hover:bg-gray-50 transition">
-                        <td class="py-4 px-2 text-xs text-gray-500">${tgl}</td>
-                        <td class="py-4 px-2 font-bold text-indigo-600 text-sm">${data.gugus}</td>
-                        <td class="py-4 px-2 text-sm text-gray-700">${data.judul}</td>
-                        <td class="py-4 px-2 text-center">
-                            <a href="${data.link}" target="_blank" class="text-indigo-500 hover:text-indigo-800"><i class="fas fa-eye"></i></a>
+                    <tr class="border-b border-gray-50 hover:bg-indigo-50/30 transition">
+                        <td class="py-4 px-4 text-xs font-bold text-gray-400">${tgl}</td>
+                        <td class="py-4 px-4">
+                            <p class="font-black text-indigo-700 text-sm uppercase">${data.nama_guru}</p>
+                            <p class="text-[10px] text-gray-400">${data.gugus}</p>
+                        </td>
+                        <td class="py-4 px-4 text-xs text-gray-600 italic">"${data.deskripsi || '-'}"</td>
+                        <td class="py-4 px-4 text-center">
+                            <a href="${data.link}" target="_blank" class="inline-flex items-center justify-center w-8 h-8 bg-indigo-100 text-indigo-600 rounded-full hover:bg-indigo-600 hover:text-white transition">
+                                <i class="fas fa-link text-xs"></i>
+                            </a>
                         </td>
                     </tr>`;
             });
         }
 
-        // --- EVENT HANDLERS ---
         document.getElementById('formLaporan').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = e.target.querySelector('button');
             btn.innerText = "Mengirim...";
             try {
                 await addDoc(collection(db, "laporan_rtl"), {
-                    judul: document.getElementById('judul').value,
+                    nama_guru: document.getElementById('nama_guru').value,
                     gugus: document.getElementById('gugus').value,
+                    deskripsi: document.getElementById('deskripsi').value,
                     link: document.getElementById('link').value,
                     tanggal: new Date().toISOString()
                 });
-                alert("Berhasil!"); e.target.reset();
-            } catch (err) { alert("Gagal!"); }
+                alert("Laporan Berhasil Disimpan!"); e.target.reset();
+            } catch (err) { alert("Gagal Simpan Data!"); }
             btn.innerText = "Simpan & Bagikan Progres";
         });
 
-        // Sidebar Navigation Logic
         window.setFilter = (val) => {
-            currentFilter = val;
             loadData(val);
-            // Visual Active State
             document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('bg-indigo-800', 'border-l-4', 'border-emerald-400'));
             event.currentTarget.classList.add('bg-indigo-800', 'border-l-4', 'border-emerald-400');
         };
 
-        loadData(); // Jalankan pertama kali
+        loadData();
     </script>
-
-    <style>
-        .custom-scroll::-webkit-scrollbar { width: 5px; }
-        .custom-scroll::-webkit-scrollbar-track { background: #f1f1f1; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 10px; }
-    </style>
 </head>
-<body class="bg-gray-50 font-sans text-gray-900">
+<body class="bg-slate-50 font-sans text-slate-900">
 
     <div class="flex h-screen overflow-hidden">
         <!-- SIDEBAR -->
-        <aside class="w-64 bg-indigo-950 text-white flex-shrink-0 hidden md:block">
-            <div class="p-6 text-xl font-bold border-b border-indigo-900 flex items-center shadow-lg">
-                <i class="fas fa-brain mr-2 text-emerald-400"></i> KKG SMART
+        <aside class="w-72 bg-indigo-950 text-white flex-shrink-0 hidden md:block">
+            <div class="p-8 text-2xl font-black border-b border-indigo-900 flex items-center">
+                <i class="fas fa-rocket mr-3 text-emerald-400"></i> KKG SMART
             </div>
-            <nav class="mt-6 space-y-1">
-                <button onclick="setFilter('Semua')" class="nav-link w-full flex items-center py-3 px-6 transition bg-indigo-800 border-l-4 border-emerald-400">
-                    <i class="fas fa-th-large mr-3 text-sm"></i> Dashboard Utama
+            <nav class="mt-6">
+                <button onclick="setFilter('Semua')" class="nav-link w-full flex items-center py-4 px-8 transition bg-indigo-800 border-l-4 border-emerald-400">
+                    <i class="fas fa-layer-group mr-3 text-sm text-emerald-400"></i> Dashboard Utama
                 </button>
-                <div class="px-6 py-4 text-[10px] font-black text-indigo-400 uppercase tracking-widest">Wilayah Kerja</div>
-                <button onclick="setFilter('Gugus Rendah 1')" class="nav-link w-full flex items-center py-3 px-6 hover:bg-indigo-900 transition">
-                    <i class="fas fa-child mr-3 text-sm"></i> Kelas Rendah 1
-                </button>
-                <button onclick="setFilter('Gugus Rendah 2')" class="nav-link w-full flex items-center py-3 px-6 hover:bg-indigo-900 transition">
-                    <i class="fas fa-child mr-3 text-sm"></i> Kelas Rendah 2
-                </button>
-                <button onclick="setFilter('Gugus Tinggi 1')" class="nav-link w-full flex items-center py-3 px-6 hover:bg-indigo-900 transition">
-                    <i class="fas fa-user-graduate mr-3 text-sm"></i> Kelas Tinggi 1
-                </button>
-                <button onclick="setFilter('Gugus Tinggi 2')" class="nav-link w-full flex items-center py-3 px-6 hover:bg-indigo-900 transition">
-                    <i class="fas fa-user-graduate mr-3 text-sm"></i> Kelas Tinggi 2
-                </button>
-                <button onclick="setFilter('Komunitas PAI')" class="nav-link w-full flex items-center py-3 px-6 hover:bg-indigo-900 transition">
-                    <i class="fas fa-mosque mr-3 text-sm"></i> Komunitas PAI
-                </button>
+                <div class="px-8 py-6 text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">Navigasi Gugus</div>
+                <div class="space-y-1">
+                    <button onclick="setFilter('Gugus Rendah 1')" class="nav-link w-full flex items-center py-3 px-8 hover:bg-indigo-900 transition text-sm opacity-80 hover:opacity-100">Gugus Rendah 1</button>
+                    <button onclick="setFilter('Gugus Rendah 2')" class="nav-link w-full flex items-center py-3 px-8 hover:bg-indigo-900 transition text-sm opacity-80 hover:opacity-100">Gugus Rendah 2</button>
+                    <button onclick="setFilter('Gugus Tinggi 1')" class="nav-link w-full flex items-center py-3 px-8 hover:bg-indigo-900 transition text-sm opacity-80 hover:opacity-100">Gugus Tinggi 1</button>
+                    <button onclick="setFilter('Gugus Tinggi 2')" class="nav-link w-full flex items-center py-3 px-8 hover:bg-indigo-900 transition text-sm opacity-80 hover:opacity-100">Gugus Tinggi 2</button>
+                    <button onclick="setFilter('Komunitas PAI')" class="nav-link w-full flex items-center py-3 px-8 hover:bg-indigo-900 transition text-sm opacity-80 hover:opacity-100 font-bold text-emerald-300">Komunitas PAI</button>
+                </div>
+                
+                <div id="adminMenu" class="mt-10 pt-6 border-t border-indigo-900 px-8">
+                    <button onclick="loginUser()" class="text-xs font-bold text-indigo-300 hover:text-white flex items-center">
+                        <i class="fas fa-lock mr-2"></i> Mode: <span id="userRoleDisplay" class="ml-1 text-emerald-400 font-black">GURU</span>
+                    </button>
+                </div>
             </nav>
         </aside>
 
         <!-- MAIN CONTENT -->
-        <main class="flex-1 overflow-y-auto custom-scroll p-4 md:p-8">
-            <header class="flex justify-between items-center mb-8 bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+        <main class="flex-1 overflow-y-auto p-4 md:p-10">
+            <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
                 <div>
-                    <h1 class="text-xl font-extrabold text-gray-800">E-Laporan <span class="text-indigo-600" id="filterStatus">Semua</span></h1>
-                    <p class="text-xs text-gray-400 font-medium uppercase tracking-tighter">SDN 165 Tanjung Jabung Barat</p>
+                    <h1 class="text-3xl font-black text-slate-800 tracking-tight">E-Laporan <span class="text-indigo-600" id="filterStatus">Semua</span></h1>
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">SDN 165 Tanjung Jabung Barat</p>
                 </div>
-                <div class="bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100">
-                    <span class="text-[10px] block text-indigo-400 font-bold uppercase">Total Laporan</span>
-                    <span id="totalLaporan" class="text-xl font-black text-indigo-700 leading-none">0</span>
+                <div class="flex gap-4">
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center">
+                        <div class="bg-indigo-50 w-10 h-10 rounded-xl flex items-center justify-center text-indigo-600 mr-3">
+                            <i class="fas fa-file-signature"></i>
+                        </div>
+                        <div>
+                            <span class="text-[10px] block text-slate-400 font-bold uppercase">Total Laporan</span>
+                            <span id="totalLaporan" class="text-xl font-black text-indigo-700 leading-none">0</span>
+                        </div>
+                    </div>
                 </div>
             </header>
 
-            <!-- DASHBOARD SECTION -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <!-- CHART -->
-                <div class="lg:col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-gray-100 h-80">
+                <div class="lg:col-span-2 bg-white p-8 rounded-[2rem] shadow-xl shadow-slate-200/50 border border-white h-96">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="font-black text-slate-700 uppercase text-xs tracking-widest">Statistik Kinerja Gugus</h3>
+                        <i class="fas fa-chart-bar text-indigo-200"></i>
+                    </div>
                     <canvas id="performanceChart"></canvas>
                 </div>
 
                 <!-- FORM INPUT -->
-                <div class="bg-indigo-600 p-6 rounded-3xl shadow-xl shadow-indigo-100 text-white">
-                    <h3 class="font-bold mb-4 flex items-center"><i class="fas fa-feather-alt mr-2"></i> Buat Laporan</h3>
-                    <form id="formLaporan" class="space-y-3">
-                        <input type="text" id="judul" required placeholder="Nama Pelatihan/Kegiatan" class="w-full px-4 py-3 bg-indigo-500/30 border border-indigo-400 rounded-xl placeholder-indigo-200 focus:outline-none focus:ring-2 focus:ring-emerald-400 text-sm">
-                        <select id="gugus" required class="w-full px-4 py-3 bg-indigo-500/30 border border-indigo-400 rounded-xl focus:outline-none text-sm">
-                            <option class="text-gray-800">Gugus Rendah 1</option>
-                            <option class="text-gray-800">Gugus Rendah 2</option>
-                            <option class="text-gray-800">Gugus Tinggi 1</option>
-                            <option class="text-gray-800">Gugus Tinggi 2</option>
-                            <option class="text-gray-800">Komunitas PAI</option>
+                <div class="bg-indigo-600 p-8 rounded-[2rem] shadow-2xl shadow-indigo-200 text-white relative overflow-hidden">
+                    <div class="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-3xl"></div>
+                    <h3 class="font-black text-xl mb-6 flex items-center tracking-tight">
+                        <i class="fas fa-edit mr-3 text-emerald-300"></i> Buat Laporan RTL
+                    </h3>
+                    <form id="formLaporan" class="space-y-4 relative z-10">
+                        <input type="text" id="nama_guru" required placeholder="Nama Lengkap Guru" class="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-2xl placeholder-indigo-100 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition">
+                        
+                        <select id="gugus" required class="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-400 transition text-sm appearance-none">
+                            <option class="text-slate-800">Gugus Rendah 1</option>
+                            <option class="text-slate-800">Gugus Rendah 2</option>
+                            <option class="text-slate-800">Gugus Tinggi 1</option>
+                            <option class="text-slate-800">Gugus Tinggi 2</option>
+                            <option class="text-slate-800">Komunitas PAI</option>
                         </select>
-                        <input type="url" id="link" required placeholder="Link Laporan (GDrive)" class="w-full px-4 py-3 bg-indigo-500/30 border border-indigo-400 rounded-xl placeholder-indigo-200 focus:outline-none text-sm">
-                        <button type="submit" class="w-full bg-emerald-400 hover:bg-emerald-500 text-indigo-900 font-black py-3 rounded-xl transition shadow-lg">Simpan & Bagikan</button>
+
+                        <textarea id="deskripsi" required placeholder="Deskripsi singkat kegiatan RTL..." rows="3" class="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-2xl placeholder-indigo-100 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition text-sm"></textarea>
+
+                        <input type="url" id="link" required placeholder="Link Laporan (GDrive)" class="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-2xl placeholder-indigo-100 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition text-sm">
+                        
+                        <button type="submit" class="w-full bg-emerald-400 hover:bg-emerald-300 text-indigo-950 font-black py-5 rounded-2xl transition shadow-lg shadow-indigo-800/20 active:scale-95 uppercase text-xs tracking-widest">
+                            Simpan & Bagikan Progres
+                        </button>
                     </form>
                 </div>
             </div>
 
             <!-- TABLE SECTION -->
-            <div class="mt-8 bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-                <div class="p-6 border-b border-gray-50 flex justify-between items-center">
-                    <h3 class="font-black text-gray-700 uppercase text-xs tracking-widest">Riwayat Aktivitas</h3>
-                    <div class="h-2 w-2 rounded-full bg-emerald-500 animate-ping"></div>
+            <div class="mt-12 bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-white overflow-hidden">
+                <div class="px-8 py-8 border-b border-slate-50 flex justify-between items-center">
+                    <div>
+                        <h3 class="font-black text-slate-800 uppercase text-sm tracking-widest">Log Aktivitas Terbaru</h3>
+                        <p class="text-[10px] text-slate-400 font-bold mt-1 uppercase">Pantau kreativitas rekan sejawat Anda</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-xs">Live</span>
+                    </div>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full">
+                        <thead>
+                            <tr class="bg-slate-50/50">
+                                <th class="py-4 px-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Waktu</th>
+                                <th class="py-4 px-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Informasi Guru</th>
+                                <th class="py-4 px-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Deskripsi RTL</th>
+                                <th class="py-4 px-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Link</th>
+                            </tr>
+                        </thead>
                         <tbody id="tabelLaporanBody">
-                            <!-- Data Masuk Disini -->
+                            <!-- Data Otomatis Disini -->
                         </tbody>
                     </table>
                 </div>
