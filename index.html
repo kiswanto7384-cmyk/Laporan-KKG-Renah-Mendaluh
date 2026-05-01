@@ -63,20 +63,49 @@
                         borderRadius: 8
                     }]
                 },
-                options: { responsive: true, maintainAspectRatio: false }
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                }
             });
         }
 
-        window.loadAdminData = (filterGugus = "Semua") => {
-            const colRef = collection(db, "laporan_rtl");
-            let q = (filterGugus === "Semua") 
-                ? query(colRef, orderBy("tanggal", "desc"))
-                : query(colRef, where("gugus", "==", filterGugus), orderBy("tanggal", "desc"));
+        // Variable untuk menyimpan unsubscribe listener agar tidak duplikat
+        let unsubscribe = null;
 
-            onSnapshot(q, (snapshot) => {
+        window.loadAdminData = (filterGugus = "Semua") => {
+            // Update UI Sidebar Active State (Optional but helpful)
+            document.querySelectorAll('aside nav button').forEach(btn => {
+                btn.classList.remove('border-l-4', 'border-emerald-400', 'bg-indigo-900');
+            });
+            event?.target?.classList.add('border-l-4', 'border-emerald-400', 'bg-indigo-900');
+
+            const colRef = collection(db, "laporan_rtl");
+            let q;
+            
+            if (filterGugus === "Semua") {
+                q = query(colRef, orderBy("tanggal", "desc"));
+            } else {
+                // Catatan: Jika error, pastikan sudah membuat Index di Firebase Console (muncul di log browser jika perlu)
+                q = query(colRef, where("gugus", "==", filterGugus), orderBy("tanggal", "desc"));
+            }
+
+            // Hapus listener lama jika ada
+            if (unsubscribe) unsubscribe();
+
+            unsubscribe = onSnapshot(q, (snapshot) => {
                 const tbody = document.getElementById('tabelLaporanBody');
                 tbody.innerHTML = "";
-                const counts = { 'Gugus 1 Kelas Tinggi':0, 'Gugus 1 kelas Rendah':0, 'Gugus 2 Kelas Tinggi':0, 'Gugus 2 Kelas Rendah':0, 'Pend. Agama Islam':0 };
+                
+                // Reset Hitungan Grafik
+                const counts = { 
+                    'Gugus 1 Kelas Tinggi': 0, 
+                    'Gugus 1 kelas Rendah': 0, 
+                    'Gugus 2 Kelas Tinggi': 0, 
+                    'Gugus 2 Kelas Rendah': 0, 
+                    'Pend. Agama Islam': 0 
+                };
                 
                 snapshot.forEach(doc => {
                     const data = doc.data();
@@ -85,24 +114,47 @@
                     tbody.innerHTML += `
                         <tr class="border-b border-gray-50 hover:bg-slate-50 transition">
                             <td class="p-4 text-[10px] text-gray-400 font-bold">${new Date(data.tanggal).toLocaleDateString('id-ID')}</td>
-                            <td class="p-4"><p class="font-black text-indigo-700 text-xs uppercase">${data.nama_guru}</p><p class="text-[10px] text-gray-400">${data.gugus}</p></td>
+                            <td class="p-4">
+                                <p class="font-black text-indigo-700 text-xs uppercase">${data.nama_guru}</p>
+                                <p class="text-[10px] text-gray-400">${data.gugus}</p>
+                            </td>
                             <td class="p-4 text-[11px] text-gray-600">${data.deskripsi}</td>
                             <td class="p-4 text-center whitespace-nowrap">
-                                <a href="${data.link}" target="_blank" class="w-8 h-8 inline-flex items-center justify-center bg-indigo-100 text-indigo-600 rounded-full hover:bg-indigo-600 hover:text-white transition"><i class="fas fa-link text-xs"></i></a>
-                                <button onclick="hapusLaporan('${doc.id}')" class="ml-2 w-8 h-8 bg-red-100 text-red-600 rounded-full hover:bg-red-600 hover:text-white transition"><i class="fas fa-trash text-[10px]"></i></button>
+                                <a href="${data.link}" target="_blank" class="w-8 h-8 inline-flex items-center justify-center bg-indigo-100 text-indigo-600 rounded-full hover:bg-indigo-600 hover:text-white transition">
+                                    <i class="fas fa-link text-xs"></i>
+                                </a>
+                                <button onclick="hapusLaporan('${doc.id}')" class="ml-2 w-8 h-8 bg-red-100 text-red-600 rounded-full hover:bg-red-600 hover:text-white transition">
+                                    <i class="fas fa-trash text-[10px]"></i>
+                                </button>
                             </td>
                         </tr>`;
                 });
 
                 document.getElementById('totalLaporanAdmin').innerText = snapshot.size;
+                
+                // Update Judul Tabel sesuai filter
+                document.getElementById('currentFilterLabel').innerText = filterGugus === "Semua" ? "Semua Gugus" : filterGugus;
+
+                // Update Grafik
                 if(!myChart) initChart();
                 myChart.data.datasets[0].data = Object.values(counts);
                 myChart.update();
+            }, (error) => {
+                console.error("Error fetching data: ", error);
+                if(error.code === 'failed-precondition') {
+                    alert("Firebase memerlukan INDEX. Cek log console browser untuk klik link pembuatan index.");
+                }
             });
         };
 
         window.hapusLaporan = async (id) => {
-            if (confirm("Hapus permanen?")) await deleteDoc(doc(db, "laporan_rtl", id));
+            if (confirm("Hapus laporan ini secara permanen?")) {
+                try {
+                    await deleteDoc(doc(db, "laporan_rtl", id));
+                } catch (err) {
+                    alert("Gagal menghapus: " + err.message);
+                }
+            }
         };
 
         // --- FORM GURU ---
@@ -124,11 +176,18 @@
             } catch (err) { alert("Error: " + err.message); } 
             finally { btn.disabled = false; btn.innerText = "SIMPAN & BAGIKAN PROGRES"; }
         });
+
+        // --- EKSPOR EXCEL (Fungsi Baru) ---
+        window.exportToExcel = () => {
+            const table = document.querySelector("table");
+            const wb = XLSX.utils.table_to_book(table, {sheet: "Rekap Laporan"});
+            XLSX.writeFile(wb, `Rekap_KKG_${new Date().toLocaleDateString()}.xlsx`);
+        };
     </script>
 </head>
 <body class="bg-slate-100 font-sans text-slate-900">
 
-    <!-- PAGE 1: LANDING / PILIH PERAN -->
+    <!-- PAGE 1: LANDING -->
     <div id="landingPage" class="page-content min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-indigo-900 to-slate-950 text-white">
         <div class="max-w-md w-full text-center">
             <div class="mb-10">
@@ -138,7 +197,6 @@
                 <h1 class="text-3xl font-black tracking-tight">KKG SMART</h1>
                 <p class="text-indigo-300 text-sm mt-2 font-medium">Kecamatan Renah Mendaluh</p>
             </div>
-
             <div class="space-y-4">
                 <button onclick="showPage('guruPage')" class="w-full p-6 bg-white text-indigo-950 rounded-[2rem] font-black text-lg flex items-center justify-between hover:bg-emerald-400 transition transform active:scale-95 group shadow-xl">
                     <div class="text-left">
@@ -147,7 +205,6 @@
                     </div>
                     <i class="fas fa-chevron-right text-indigo-200 group-hover:text-indigo-950"></i>
                 </button>
-
                 <button onclick="tryAdminAccess()" class="w-full p-6 bg-indigo-800/50 border border-indigo-700 text-white rounded-[2rem] font-black text-lg flex items-center justify-between hover:bg-indigo-700 transition transform active:scale-95 group">
                     <div class="text-left">
                         <span class="block">SAYA ADMIN / KETUA</span>
@@ -165,19 +222,16 @@
             <button onclick="showPage('landingPage')" class="text-indigo-100 font-bold mb-8 flex items-center text-sm">
                 <i class="fas fa-arrow-left mr-2"></i> Kembali
             </button>
-            
             <div class="bg-indigo-700/50 p-8 rounded-[2.5rem] border border-white/10 shadow-2xl">
                 <div class="flex items-center mb-8">
                     <i class="fas fa-edit text-emerald-300 text-2xl mr-4"></i>
                     <h2 class="text-2xl font-black text-white uppercase tracking-tighter">Buat Laporan RTL</h2>
                 </div>
-
                 <form id="formLaporan" class="space-y-4">
                     <div class="space-y-1">
                         <label class="text-[10px] font-black text-indigo-200 uppercase ml-2 tracking-widest">Identitas Guru</label>
                         <input type="text" id="nama_guru" required placeholder="Nama Lengkap & Gelar" class="w-full p-5 bg-white/10 border border-white/10 rounded-2xl text-white placeholder-indigo-300 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition shadow-inner">
                     </div>
-
                     <div class="space-y-1">
                         <label class="text-[10px] font-black text-indigo-200 uppercase ml-2 tracking-widest">Pilih Gugus</label>
                         <select id="gugus" required class="w-full p-5 bg-white/10 border border-white/10 rounded-2xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400 transition cursor-pointer appearance-none">
@@ -188,17 +242,14 @@
                             <option class="text-slate-900" value="Pend. Agama Islam">Pend. Agama Islam</option>
                         </select>
                     </div>
-
                     <div class="space-y-1">
                         <label class="text-[10px] font-black text-indigo-200 uppercase ml-2 tracking-widest">Ringkasan RTL</label>
                         <textarea id="deskripsi" required placeholder="Apa yang Anda kerjakan?" rows="3" class="w-full p-5 bg-white/10 border border-white/10 rounded-2xl text-white placeholder-indigo-300 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition"></textarea>
                     </div>
-
                     <div class="space-y-1">
                         <label class="text-[10px] font-black text-indigo-200 uppercase ml-2 tracking-widest">Dokumen (Link GDrive)</label>
                         <input type="url" id="link" required placeholder="https://drive.google.com/..." class="w-full p-5 bg-white/10 border border-white/10 rounded-2xl text-white placeholder-indigo-300 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition">
                     </div>
-
                     <button type="submit" class="w-full bg-emerald-400 hover:bg-emerald-300 text-indigo-950 font-black py-6 rounded-2xl transition shadow-xl shadow-emerald-500/20 active:scale-95 uppercase text-sm tracking-widest mt-4">
                         SIMPAN & BAGIKAN PROGRES
                     </button>
@@ -209,7 +260,6 @@
 
     <!-- PAGE 3: ADMIN DASHBOARD -->
     <div id="adminPage" class="page-content hidden-section flex flex-col md:flex-row h-screen overflow-hidden">
-        <!-- SIDEBAR ADMIN -->
         <aside class="w-72 bg-indigo-950 text-white flex-shrink-0 hidden md:block">
             <div class="p-8 text-2xl font-black flex items-center">
                 <i class="fas fa-shield-alt mr-3 text-emerald-400"></i> ADMIN
@@ -222,7 +272,6 @@
                 <button onclick="loadAdminData('Gugus 2 Kelas Tinggi')" class="w-full text-left py-3 px-8 hover:bg-indigo-900 text-xs opacity-70 hover:opacity-100 uppercase font-bold transition">Gugus 2 Tinggi</button>
                 <button onclick="loadAdminData('Gugus 2 Kelas Rendah')" class="w-full text-left py-3 px-8 hover:bg-indigo-900 text-xs opacity-70 hover:opacity-100 uppercase font-bold transition">Gugus 2 Rendah</button>
                 <button onclick="loadAdminData('Pend. Agama Islam')" class="w-full text-left py-3 px-8 hover:bg-indigo-900 text-xs text-emerald-300 font-bold transition">PAI</button>
-                
                 <div class="mt-10 p-8 border-t border-indigo-900">
                     <button onclick="showPage('landingPage')" class="text-xs font-black text-red-400 hover:text-red-300 flex items-center">
                         <i class="fas fa-sign-out-alt mr-2"></i> KELUAR DASHBOARD
@@ -231,11 +280,10 @@
             </nav>
         </aside>
 
-        <!-- MAIN ADMIN -->
         <main class="flex-1 overflow-y-auto p-4 md:p-10">
             <header class="flex justify-between items-center mb-10">
                 <div>
-                    <h1 class="text-2xl font-black">Data Masuk</h1>
+                    <h1 class="text-2xl font-black">Data Masuk: <span id="currentFilterLabel" class="text-indigo-600">Semua Gugus</span></h1>
                     <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Panel Monitoring KKG</p>
                 </div>
                 <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center">
@@ -254,7 +302,7 @@
                 <div class="bg-indigo-600 p-8 rounded-[2rem] text-white flex flex-col justify-center shadow-xl">
                     <h3 class="text-xl font-black mb-2 italic">Siap Ekspor Data?</h3>
                     <p class="text-indigo-100 text-sm mb-6">Unduh rekap laporan dalam format Excel untuk keperluan administrasi dinas.</p>
-                    <button onclick="alert('Export Excel Berhasil!')" class="bg-emerald-400 text-indigo-950 font-black py-4 rounded-xl shadow-lg hover:bg-white transition uppercase text-xs tracking-widest">
+                    <button onclick="exportToExcel()" class="bg-emerald-400 text-indigo-950 font-black py-4 rounded-xl shadow-lg hover:bg-white transition uppercase text-xs tracking-widest">
                         <i class="fas fa-download mr-2"></i> Download Rekap Excel
                     </button>
                 </div>
