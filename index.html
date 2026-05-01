@@ -6,13 +6,14 @@
     <title>E-Laporan KKG - Renah Mendaluh</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Library untuk Export Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, where, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // CONFIG FIREBASE BERSIH (Tanpa databaseURL untuk menghindari konflik Firestore)
         const firebaseConfig = {
             apiKey: "AIzaSyBH2_m3mKkp1YoXWrdzMyZXDs_SZ8q_bGE",
             authDomain: "aplikasi-program-kkg.firebaseapp.com",
@@ -26,21 +27,30 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // --- SISTEM LOGIN SEDERHANA ---
+        // --- SISTEM LOGIN KKG INTI ---
         window.loginUser = () => {
-            const userRole = prompt("Masukkan Role (admin / ketua / guru):");
-            if(userRole) {
-                localStorage.setItem('kkg_role', userRole);
+            const pass = prompt("Masukkan Password Admin / Ketua KKG:");
+            // Password default: kkgmendalu (Silahkan ganti sesuai keinginan)
+            if (pass === "kkgmendalu") { 
+                localStorage.setItem('kkg_role', 'admin');
+                alert("Akses Admin Aktif!");
+                location.reload();
+            } else if (pass === "" || pass === null) {
+                // cancel
+            } else {
+                localStorage.setItem('kkg_role', 'guru');
+                alert("Password Salah! Kembali ke Mode Guru.");
                 location.reload();
             }
         };
 
-        const currentRole = localStorage.getItem('kkg_role') || 'guru';
-        document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('userRoleDisplay').innerText = currentRole.toUpperCase();
-            if(currentRole === 'guru') document.getElementById('adminMenu').classList.add('hidden');
-        });
+        window.logout = () => {
+            localStorage.setItem('kkg_role', 'guru');
+            location.reload();
+        };
 
+        const currentRole = localStorage.getItem('kkg_role') || 'guru';
+        
         // --- CHART CONFIG ---
         const ctx = document.getElementById('performanceChart').getContext('2d');
         let myChart = new Chart(ctx, {
@@ -48,7 +58,7 @@
             data: {
                 labels: ['Grendah 1', 'Grendah 2', 'Gtinggi 1', 'Gtinggi 2', 'K-PAI'],
                 datasets: [{
-                    label: 'Progres RTL',
+                    label: 'Jumlah Laporan',
                     data: [0, 0, 0, 0, 0],
                     backgroundColor: '#4f46e5',
                     borderRadius: 10
@@ -57,21 +67,22 @@
             options: { responsive: true, maintainAspectRatio: false }
         });
 
+        // Simpan data snapshot untuk export excel
+        let currentDataRaw = [];
+
         // --- LOGIKA DATA REAL-TIME ---
         function loadData(filterGugus = "Semua") {
             const q = filterGugus === "Semua" 
                 ? query(collection(db, "laporan_rtl"), orderBy("tanggal", "desc"))
                 : query(collection(db, "laporan_rtl"), where("gugus", "==", filterGugus), orderBy("tanggal", "desc"));
 
-            // onSnapshot menjamin data terupdate otomatis tanpa refresh
             onSnapshot(q, (snapshot) => {
+                currentDataRaw = [];
+                snapshot.forEach(doc => {
+                    currentDataRaw.push({ id: doc.id, ...doc.data() });
+                });
                 updateDashboard(snapshot, filterGugus);
                 renderTable(snapshot);
-            }, (error) => {
-                console.error("Koneksi gagal:", error);
-                if (error.code === 'permission-denied') {
-                    alert("Akses ditolak. Pastikan Rules di Firebase Console sudah di-publish.");
-                }
             });
         }
 
@@ -87,15 +98,33 @@
             document.getElementById('filterStatus').innerText = filter;
         }
 
+        // --- FUNGSI HAPUS (KHUSUS ADMIN) ---
+        window.hapusLaporan = async (id) => {
+            if (currentRole !== 'admin') return alert("Akses Ditolak!");
+            if (confirm("Hapus laporan ini secara permanen?")) {
+                try {
+                    await deleteDoc(doc(db, "laporan_rtl", id));
+                } catch (err) {
+                    alert("Gagal menghapus.");
+                }
+            }
+        };
+
         function renderTable(snapshot) {
             const tbody = document.getElementById('tabelLaporanBody');
             tbody.innerHTML = "";
             snapshot.forEach((doc) => {
                 const data = doc.data();
-                const tgl = new Date(data.tanggal).toLocaleDateString('id-ID');
+                const id = doc.id;
+                const tgl = new Date(data.tanggal).toLocaleString('id-ID');
+                
+                const deleteBtn = currentRole === 'admin' 
+                    ? `<button onclick="hapusLaporan('${id}')" class="ml-2 w-8 h-8 bg-red-100 text-red-600 rounded-full hover:bg-red-600 hover:text-white transition"><i class="fas fa-trash text-[10px]"></i></button>`
+                    : '';
+
                 tbody.innerHTML += `
                     <tr class="border-b border-gray-50 hover:bg-indigo-50/30 transition">
-                        <td class="py-4 px-4 text-xs font-bold text-gray-400">${tgl}</td>
+                        <td class="py-4 px-4 text-[10px] font-bold text-gray-400">${tgl}</td>
                         <td class="py-4 px-4">
                             <p class="font-black text-indigo-700 text-sm uppercase">${data.nama_guru}</p>
                             <p class="text-[10px] text-gray-400">${data.gugus}</p>
@@ -105,10 +134,29 @@
                             <a href="${data.link}" target="_blank" class="inline-flex items-center justify-center w-8 h-8 bg-indigo-100 text-indigo-600 rounded-full hover:bg-indigo-600 hover:text-white transition">
                                 <i class="fas fa-link text-xs"></i>
                             </a>
+                            ${deleteBtn}
                         </td>
                     </tr>`;
             });
         }
+
+        // --- FUNGSI DOWNLOAD EXCEL ---
+        window.downloadExcel = () => {
+            if (currentDataRaw.length === 0) return alert("Tidak ada data untuk diunduh.");
+            
+            const dataExport = currentDataRaw.map(item => ({
+                Tanggal: new Date(item.tanggal).toLocaleString('id-ID'),
+                Nama_Guru: item.nama_guru,
+                Gugus: item.gugus,
+                Deskripsi_Kegiatan: item.deskripsi,
+                Link_Laporan: item.link
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(dataExport);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan KKG");
+            XLSX.writeFile(workbook, `Laporan_KKG_RenahMendaluh_${new Date().toLocaleDateString()}.xlsx`);
+        };
 
         // --- SIMPAN DATA ---
         document.getElementById('formLaporan').addEventListener('submit', async (e) => {
@@ -128,8 +176,7 @@
                 alert("Laporan Berhasil Disimpan!"); 
                 e.target.reset();
             } catch (err) { 
-                alert("Gagal Simpan Data! Cek koneksi atau Firebase Rules."); 
-                console.error(err);
+                alert("Gagal Simpan Data!"); 
             } finally {
                 btn.disabled = false;
                 btn.innerText = "Simpan & Bagikan Progres";
@@ -142,7 +189,15 @@
             event.currentTarget.classList.add('bg-indigo-800', 'border-l-4', 'border-emerald-400');
         };
 
-        // Jalankan load data pertama kali
+        // Inisialisasi Tampilan
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('userRoleDisplay').innerText = currentRole.toUpperCase();
+            if(currentRole === 'admin') {
+                document.getElementById('btnDownloadExcel').classList.remove('hidden');
+                document.getElementById('btnLogout').classList.remove('hidden');
+            }
+        });
+
         loadData();
     </script>
 </head>
@@ -167,9 +222,12 @@
                     <button onclick="setFilter('Komunitas PAI')" class="nav-link w-full flex items-center py-3 px-8 hover:bg-indigo-900 transition text-sm opacity-80 hover:opacity-100 font-bold text-emerald-300">Komunitas PAI</button>
                 </div>
                 
-                <div id="adminMenu" class="mt-10 pt-6 border-t border-indigo-900 px-8">
+                <div class="mt-10 pt-6 border-t border-indigo-900 px-8 space-y-4">
                     <button onclick="loginUser()" class="text-xs font-bold text-indigo-300 hover:text-white flex items-center">
                         <i class="fas fa-lock mr-2"></i> Mode: <span id="userRoleDisplay" class="ml-1 text-emerald-400 font-black">GURU</span>
+                    </button>
+                    <button id="btnLogout" onclick="logout()" class="hidden text-xs font-bold text-red-400 hover:text-red-200 flex items-center">
+                        <i class="fas fa-sign-out-alt mr-2"></i> KELUAR ADMIN
                     </button>
                 </div>
             </nav>
@@ -180,9 +238,12 @@
             <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
                 <div>
                     <h1 class="text-3xl font-black text-slate-800 tracking-tight">E-Laporan <span class="text-indigo-600" id="filterStatus">Semua</span></h1>
-                    <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">SDN 165 Tanjung Jabung Barat</p>
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Kecamatan Renah Mendaluh</p>
                 </div>
                 <div class="flex gap-4">
+                    <button id="btnDownloadExcel" onclick="downloadExcel()" class="hidden bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center shadow-lg transition active:scale-95">
+                        <i class="fas fa-file-excel mr-2"></i> DOWNLOAD REKAP EXCEL
+                    </button>
                     <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center">
                         <div class="bg-indigo-50 w-10 h-10 rounded-xl flex items-center justify-center text-indigo-600 mr-3">
                             <i class="fas fa-file-signature"></i>
@@ -238,11 +299,11 @@
                 <div class="px-8 py-8 border-b border-slate-50 flex justify-between items-center">
                     <div>
                         <h3 class="font-black text-slate-800 uppercase text-sm tracking-widest">Log Aktivitas Terbaru</h3>
-                        <p class="text-[10px] text-slate-400 font-bold mt-1 uppercase">Pantau kreativitas rekan sejawat Anda</p>
+                        <p class="text-[10px] text-slate-400 font-bold mt-1 uppercase">Data Masuk Kecamatan Renah Mendaluh</p>
                     </div>
                     <div class="flex items-center gap-2">
                         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-xs">Live</span>
+                        <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-xs">Live Database</span>
                     </div>
                 </div>
                 <div class="overflow-x-auto">
@@ -252,11 +313,11 @@
                                 <th class="py-4 px-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Waktu</th>
                                 <th class="py-4 px-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Informasi Guru</th>
                                 <th class="py-4 px-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Deskripsi RTL</th>
-                                <th class="py-4 px-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Link</th>
+                                <th class="py-4 px-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Aksi</th>
                             </tr>
                         </thead>
                         <tbody id="tabelLaporanBody">
-                            <!-- Data Otomatis Disini -->
+                            <!-- Data Terisi Otomatis -->
                         </tbody>
                     </table>
                 </div>
