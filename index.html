@@ -3,69 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>E-Laporan KKG Modern - Renah Mendaluh</title>
+    <title>E-Laporan KKG - Renah Mendaluh</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
-    <!-- Firebase SDK (Modular) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // GANTI DENGAN CONFIG MILIK ANDA DARI FIREBASE CONSOLE
-const firebaseConfig = {
-  apiKey: "AIzaSyBH2_m3mKkp1YoXWrdzMyZXDs_SZ8q_bGE",
-  authDomain: "aplikasi-program-kkg.firebaseapp.com",
-  databaseURL: "https://aplikasi-program-kkg-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "aplikasi-program-kkg",
-  storageBucket: "aplikasi-program-kkg.firebasestorage.app",
-  messagingSenderId: "525865837596",
-  appId: "1:525865837596:web:97fb6bba3d8d81a0c2abd9",
-  measurementId: "G-8DSYJS9H6F"
-};
+        // MENGGUNAKAN CONFIG FIREBASE ANDA
+        const firebaseConfig = {
+            apiKey: "API_KEY_ANDA",
+            authDomain: "PROYEK-ANDA.firebaseapp.com",
+            projectId: "PROYEK-ANDA",
+            storageBucket: "PROYEK-ANDA.appspot.com",
+            messagingSenderId: "SENDER_ID_ANDA",
+            appId: "APP_ID_ANDA"
+        };
 
-        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
+        let currentFilter = "Semua";
 
-        // --- LOGIKA DATABASE ---
+        // --- FUNGSI MENGAMBIL DATA (REAL-TIME) ---
+        function loadData(filterGugus = "Semua") {
+            const q = filterGugus === "Semua" 
+                ? query(collection(db, "laporan_rtl"), orderBy("tanggal", "desc"))
+                : query(collection(db, "laporan_rtl"), where("gugus", "==", filterGugus), orderBy("tanggal", "desc"));
 
-        // 1. Simpan Laporan ke Firestore
-        const form = document.getElementById('formLaporan');
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const btn = e.target.querySelector('button');
-            btn.disabled = true;
-            btn.innerText = "Mengirim...";
+            onSnapshot(q, (snapshot) => {
+                updateDashboard(snapshot, filterGugus);
+                renderTable(snapshot);
+            });
+        }
 
-            try {
-                await addDoc(collection(db, "laporan_rtl"), {
-                    judul: document.getElementById('judul_kegiatan').value,
-                    gugus: document.getElementById('pilih_gugus').value,
-                    link: document.getElementById('link_bukti').value,
-                    tanggal: new Date().toISOString(),
-                    status: "Review"
-                });
-                alert("Laporan berhasil dikirim! Menunggu verifikasi.");
-                form.reset();
-            } catch (error) {
-                console.error("Error: ", error);
-                alert("Gagal mengirim laporan.");
-            } finally {
-                btn.disabled = false;
-                btn.innerText = "Simpan & Bagikan Progres";
-            }
-        });
-
-        // 2. Update Grafik Secara Real-time
+        // --- UPDATE GRAFIK & STATS ---
         const ctx = document.getElementById('performanceChart').getContext('2d');
         let myChart = new Chart(ctx, {
             type: 'bar',
             data: {
                 labels: ['Grendah 1', 'Grendah 2', 'Gtinggi 1', 'Gtinggi 2', 'K-PAI'],
                 datasets: [{
-                    label: 'Jumlah Laporan Masuk',
+                    label: 'Laporan Masuk',
                     data: [0, 0, 0, 0, 0],
                     backgroundColor: '#4f46e5',
                     borderRadius: 8
@@ -74,78 +54,155 @@ const firebaseConfig = {
             options: { responsive: true, maintainAspectRatio: false }
         });
 
-        // Pantau perubahan data di Firestore
-        onSnapshot(collection(db, "laporan_rtl"), (snapshot) => {
+        function updateDashboard(snapshot, filter) {
             const counts = { 'Gugus Rendah 1': 0, 'Gugus Rendah 2': 0, 'Gugus Tinggi 1': 0, 'Gugus Tinggi 2': 0, 'Komunitas PAI': 0 };
             snapshot.forEach(doc => {
-                const data = doc.data();
-                if(counts[data.gugus] !== undefined) counts[data.gugus]++;
+                const d = doc.data();
+                if(counts[d.gugus] !== undefined) counts[d.gugus]++;
             });
-
-            // Update Angka di Grafik
+            
+            document.getElementById('totalLaporan').innerText = snapshot.size;
             myChart.data.datasets[0].data = Object.values(counts);
             myChart.update();
+            document.getElementById('filterStatus').innerText = filter;
+        }
 
-            // Update Stats Card (Total Laporan)
-            document.getElementById('totalLaporan').innerText = snapshot.size;
+        // --- RENDER TABEL ---
+        function renderTable(snapshot) {
+            const tbody = document.getElementById('tabelLaporanBody');
+            tbody.innerHTML = "";
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                const tgl = new Date(data.tanggal).toLocaleDateString('id-ID');
+                tbody.innerHTML += `
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="py-4 px-2 text-xs text-gray-500">${tgl}</td>
+                        <td class="py-4 px-2 font-bold text-indigo-600 text-sm">${data.gugus}</td>
+                        <td class="py-4 px-2 text-sm text-gray-700">${data.judul}</td>
+                        <td class="py-4 px-2 text-center">
+                            <a href="${data.link}" target="_blank" class="text-indigo-500 hover:text-indigo-800"><i class="fas fa-eye"></i></a>
+                        </td>
+                    </tr>`;
+            });
+        }
+
+        // --- EVENT HANDLERS ---
+        document.getElementById('formLaporan').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            btn.innerText = "Mengirim...";
+            try {
+                await addDoc(collection(db, "laporan_rtl"), {
+                    judul: document.getElementById('judul').value,
+                    gugus: document.getElementById('gugus').value,
+                    link: document.getElementById('link').value,
+                    tanggal: new Date().toISOString()
+                });
+                alert("Berhasil!"); e.target.reset();
+            } catch (err) { alert("Gagal!"); }
+            btn.innerText = "Simpan & Bagikan Progres";
         });
+
+        // Sidebar Navigation Logic
+        window.setFilter = (val) => {
+            currentFilter = val;
+            loadData(val);
+            // Visual Active State
+            document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('bg-indigo-800', 'border-l-4', 'border-emerald-400'));
+            event.currentTarget.classList.add('bg-indigo-800', 'border-l-4', 'border-emerald-400');
+        };
+
+        loadData(); // Jalankan pertama kali
     </script>
+
+    <style>
+        .custom-scroll::-webkit-scrollbar { width: 5px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 10px; }
+    </style>
 </head>
-<body class="bg-gray-100 font-sans">
-    <!-- Struktur HTML tetap sama seperti sebelumnya, hanya tambahkan ID pada input -->
+<body class="bg-gray-50 font-sans text-gray-900">
+
     <div class="flex h-screen overflow-hidden">
-        <aside class="w-64 bg-indigo-900 text-white flex-shrink-0 hidden md:block">
-            <div class="p-6 text-2xl font-bold border-b border-indigo-800 flex items-center">
-                <i class="fas fa-graduation-cap mr-2 text-emerald-400"></i> KKG SMART
+        <!-- SIDEBAR -->
+        <aside class="w-64 bg-indigo-950 text-white flex-shrink-0 hidden md:block">
+            <div class="p-6 text-xl font-bold border-b border-indigo-900 flex items-center shadow-lg">
+                <i class="fas fa-brain mr-2 text-emerald-400"></i> KKG SMART
             </div>
-            <nav class="mt-6">
-                <a href="#" class="flex items-center py-3 px-6 bg-indigo-800 border-l-4 border-emerald-400">
-                    <i class="fas fa-home mr-3"></i> Dashboard Utama
-                </a>
-                <a href="#" class="flex items-center py-3 px-6 hover:bg-indigo-800 transition"><i class="fas fa-child mr-3"></i> Kelas Rendah</a>
-                <a href="#" class="flex items-center py-3 px-6 hover:bg-indigo-800 transition"><i class="fas fa-user-graduate mr-3"></i> Kelas Tinggi</a>
-                <a href="#" class="flex items-center py-3 px-6 hover:bg-indigo-800 transition"><i class="fas fa-mosque mr-3"></i> Komunitas PAI</a>
+            <nav class="mt-6 space-y-1">
+                <button onclick="setFilter('Semua')" class="nav-link w-full flex items-center py-3 px-6 transition bg-indigo-800 border-l-4 border-emerald-400">
+                    <i class="fas fa-th-large mr-3 text-sm"></i> Dashboard Utama
+                </button>
+                <div class="px-6 py-4 text-[10px] font-black text-indigo-400 uppercase tracking-widest">Wilayah Kerja</div>
+                <button onclick="setFilter('Gugus Rendah 1')" class="nav-link w-full flex items-center py-3 px-6 hover:bg-indigo-900 transition">
+                    <i class="fas fa-child mr-3 text-sm"></i> Kelas Rendah 1
+                </button>
+                <button onclick="setFilter('Gugus Rendah 2')" class="nav-link w-full flex items-center py-3 px-6 hover:bg-indigo-900 transition">
+                    <i class="fas fa-child mr-3 text-sm"></i> Kelas Rendah 2
+                </button>
+                <button onclick="setFilter('Gugus Tinggi 1')" class="nav-link w-full flex items-center py-3 px-6 hover:bg-indigo-900 transition">
+                    <i class="fas fa-user-graduate mr-3 text-sm"></i> Kelas Tinggi 1
+                </button>
+                <button onclick="setFilter('Gugus Tinggi 2')" class="nav-link w-full flex items-center py-3 px-6 hover:bg-indigo-900 transition">
+                    <i class="fas fa-user-graduate mr-3 text-sm"></i> Kelas Tinggi 2
+                </button>
+                <button onclick="setFilter('Komunitas PAI')" class="nav-link w-full flex items-center py-3 px-6 hover:bg-indigo-900 transition">
+                    <i class="fas fa-mosque mr-3 text-sm"></i> Komunitas PAI
+                </button>
             </nav>
         </aside>
 
-        <main class="flex-1 overflow-y-auto p-8">
-            <header class="flex justify-between items-center mb-8">
+        <!-- MAIN CONTENT -->
+        <main class="flex-1 overflow-y-auto custom-scroll p-4 md:p-8">
+            <header class="flex justify-between items-center mb-8 bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
                 <div>
-                    <h1 class="text-2xl font-bold text-gray-800">E-Laporan KKG Renah Mendaluh</h1>
-                    <p class="text-gray-500 text-sm">Dashboard Admin SDN 165</p>
+                    <h1 class="text-xl font-extrabold text-gray-800">E-Laporan <span class="text-indigo-600" id="filterStatus">Semua</span></h1>
+                    <p class="text-xs text-gray-400 font-medium uppercase tracking-tighter">SDN 165 Tanjung Jabung Barat</p>
+                </div>
+                <div class="bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100">
+                    <span class="text-[10px] block text-indigo-400 font-bold uppercase">Total Laporan</span>
+                    <span id="totalLaporan" class="text-xl font-black text-indigo-700 leading-none">0</span>
                 </div>
             </header>
 
-            <!-- STATS CARDS -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div class="bg-white p-6 rounded-2xl shadow-sm border-b-4 border-blue-500">
-                    <p class="text-gray-500 text-sm font-medium">Total Laporan RTL</p>
-                    <h2 id="totalLaporan" class="text-3xl font-bold text-gray-800">0</h2>
+            <!-- DASHBOARD SECTION -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- CHART -->
+                <div class="lg:col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-gray-100 h-80">
+                    <canvas id="performanceChart"></canvas>
                 </div>
-                <!-- Card lain tetap sama -->
+
+                <!-- FORM INPUT -->
+                <div class="bg-indigo-600 p-6 rounded-3xl shadow-xl shadow-indigo-100 text-white">
+                    <h3 class="font-bold mb-4 flex items-center"><i class="fas fa-feather-alt mr-2"></i> Buat Laporan</h3>
+                    <form id="formLaporan" class="space-y-3">
+                        <input type="text" id="judul" required placeholder="Nama Pelatihan/Kegiatan" class="w-full px-4 py-3 bg-indigo-500/30 border border-indigo-400 rounded-xl placeholder-indigo-200 focus:outline-none focus:ring-2 focus:ring-emerald-400 text-sm">
+                        <select id="gugus" required class="w-full px-4 py-3 bg-indigo-500/30 border border-indigo-400 rounded-xl focus:outline-none text-sm">
+                            <option class="text-gray-800">Gugus Rendah 1</option>
+                            <option class="text-gray-800">Gugus Rendah 2</option>
+                            <option class="text-gray-800">Gugus Tinggi 1</option>
+                            <option class="text-gray-800">Gugus Tinggi 2</option>
+                            <option class="text-gray-800">Komunitas PAI</option>
+                        </select>
+                        <input type="url" id="link" required placeholder="Link Laporan (GDrive)" class="w-full px-4 py-3 bg-indigo-500/30 border border-indigo-400 rounded-xl placeholder-indigo-200 focus:outline-none text-sm">
+                        <button type="submit" class="w-full bg-emerald-400 hover:bg-emerald-500 text-indigo-900 font-black py-3 rounded-xl transition shadow-lg">Simpan & Bagikan</button>
+                    </form>
+                </div>
             </div>
 
-            <!-- CHART -->
-            <div class="bg-white p-6 rounded-2xl shadow-sm mb-8">
-                <h3 class="text-lg font-bold text-gray-700 mb-4">Grafik Real-time Kinerja Gugus</h3>
-                <div class="h-64"><canvas id="performanceChart"></canvas></div>
-            </div>
-
-            <!-- FORM INPUT -->
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 max-w-2xl">
-                <h3 class="text-lg font-bold text-gray-800 mb-6 italic text-indigo-600">"Kreativitas Anda Adalah Inspirasi Kami"</h3>
-                <form id="formLaporan" class="space-y-4">
-                    <input type="text" id="judul_kegiatan" required class="w-full px-4 py-3 bg-gray-50 border rounded-xl" placeholder="Judul Pelatihan">
-                    <select id="pilih_gugus" required class="w-full px-4 py-3 bg-gray-50 border rounded-xl">
-                        <option>Gugus Rendah 1</option>
-                        <option>Gugus Rendah 2</option>
-                        <option>Gugus Tinggi 1</option>
-                        <option>Gugus Tinggi 2</option>
-                        <option>Komunitas PAI</option>
-                    </select>
-                    <input type="url" id="link_bukti" required class="w-full px-4 py-3 bg-gray-50 border rounded-xl" placeholder="Link Google Drive Laporan">
-                    <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold">Simpan & Bagikan Progres</button>
-                </form>
+            <!-- TABLE SECTION -->
+            <div class="mt-8 bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="p-6 border-b border-gray-50 flex justify-between items-center">
+                    <h3 class="font-black text-gray-700 uppercase text-xs tracking-widest">Riwayat Aktivitas</h3>
+                    <div class="h-2 w-2 rounded-full bg-emerald-500 animate-ping"></div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full">
+                        <tbody id="tabelLaporanBody">
+                            <!-- Data Masuk Disini -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </main>
     </div>
